@@ -37,6 +37,7 @@ import java.util.{Date, Optional}
 import javax.inject.{Inject, Named}
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.concurrent.Future
 
 
 class CourseEnrolmentActor @Inject()(@Named("course-batch-notification-actor") courseBatchNotificationActorRef: ActorRef
@@ -435,12 +436,18 @@ class CourseEnrolmentActor @Inject()(@Named("course-batch-notification-actor") c
     val comment: util.Map[String,String] = request.get(JsonKey.COMMENT).asInstanceOf[util.Map[String,String]]
     val dataBatch: util.Map[String, AnyRef] = createBatchUserMapping(batchId, userId, batchData, userName, getNodalName(request), comment)
     val dataCourse: util.Map[String, AnyRef] = createCourseUserMapping(courseId, userId, batchData, userName, getNodalName(request), comment)
+    saveUserToES(dataBatch, request.getRequestContext)
     upsertCourseBatchUser(userId, batchId, dataBatch, courseId, dataCourse, (null == courseUserData || null == batchUserData), request.getRequestContext)
   }
-  private def getNodalName(request:Request):String={
-    var nodalName:String=null
-    val userRole=getUserRole(request.getContext.getOrDefault(JsonKey.REQUESTED_BY, "").asInstanceOf[String])
-    if(userRole.equalsIgnoreCase(JsonKey.NODAL_OFFICER)){
+
+  def saveUserToES(data: util.Map[String, AnyRef], context: RequestContext): String = {
+    batchUserDao.saveBatchUserToES(data, context)
+  }
+
+  private def getNodalName(request: Request): String = {
+    var nodalName: String = null
+    val userRole = getUserRole(request.getContext.getOrDefault(JsonKey.REQUESTED_BY, "").asInstanceOf[String])
+    if (userRole.equalsIgnoreCase(JsonKey.NODAL_OFFICER)) {
       val nodalData: util.Map[String, AnyRef] = userOrgService.getUserById(request.getContext.getOrDefault(JsonKey.REQUESTED_BY, "").asInstanceOf[String], request.getContext.getOrDefault(JsonKey.X_AUTH_TOKEN, "").asInstanceOf[String])
       logger.info(request.getRequestContext, "checking the condition if nodalId is exist fetch the firstname and lastname from userData")
       if (request.getContext.get(JsonKey.REQUESTED_BY).asInstanceOf[String].equalsIgnoreCase(nodalData.get(JsonKey.USER_ID).toString)) {
@@ -452,7 +459,7 @@ class CourseEnrolmentActor @Inject()(@Named("course-batch-notification-actor") c
         } else {
           nodalName = firstname;
         }
-    }
+      }
     }
     nodalName
   }
@@ -473,9 +480,11 @@ class CourseEnrolmentActor @Inject()(@Named("course-batch-notification-actor") c
 
   def courseBatchUserList(request: Request): Unit = {
     val batchId = request.get(JsonKey.BATCH_ID).asInstanceOf[String]
+    val userId = request.get(JsonKey.USER_ID).asInstanceOf[String]
     val sortBy = request.get(JsonKey.SORT_BY).asInstanceOf[util.Map[String, AnyRef]]
     logger.info(null, "batchID : "+batchId+" "+"sortBy : " + sortBy)
-    val batchList: util.List[util.Map[String, AnyRef]] = batchUserDao.readBatchUsersList(request, batchId)
+    val batchUser: Future[util.Map[String, AnyRef]]=batchUserDao.readBatchUsersFromEs(request,batchId,userId)
+   val batchList: util.List[util.Map[String, AnyRef]] = batchUserDao.readBatchUsersList(request, batchId)
     logger.debug(null, "batchList val : " + batchList)
     var sortedList: util.List[util.Map[String, AnyRef]] = null;
     logger.info(null, "getting batchList from batchUserDao : " + batchList)
@@ -547,7 +556,7 @@ class CourseEnrolmentActor @Inject()(@Named("course-batch-notification-actor") c
         put(JsonKey.COURSENAME, courseName)
         put(JsonKey.NODALNAME, nodalName)
         put(JsonKey.SCORE,null)
-        put(JsonKey.ENROLL_DATE, ProjectUtil.getTimeStamp)
+        put(JsonKey.ENROLL_DATE, ProjectUtil.getTimeStamp.toString)
         put(JsonKey.STATUS, ProjectUtil.ProgressStatus.NOT_STARTED.getValue.asInstanceOf[AnyRef])
         put(JsonKey.COMMENT, comment)
       }

@@ -378,6 +378,7 @@ public class ProjectUtil {
     organisation("org"),
     usercourses("user-courses"),
     usernotes("usernotes"),
+    batchusermapping("batch-user-mapping"),
     userprofilevisibility("userprofilevisibility"),
     telemetry("telemetry"),
     location("location"),
@@ -387,6 +388,7 @@ public class ProjectUtil {
     cbatchstats("cbatchstats"),
     cbatchassessment("cbatch-assessment"),
     userfeed("userfeed");
+
 
     private String typeName;
 

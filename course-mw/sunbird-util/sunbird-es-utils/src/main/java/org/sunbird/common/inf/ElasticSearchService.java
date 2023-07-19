@@ -36,6 +36,18 @@ public interface ElasticSearchService {
   public Future<String> save(RequestContext requestContext, String index, String identifier, Map<String, Object> data);
 
   /**
+   * This method will put a new data entry inside Elastic search. identifier value becomes _id
+   * inside ES, so every time provide a unique value while saving it.
+   *
+   *
+   * @param requestContext
+   * @param index String ES index name
+   * @param data Map<String,Object>
+   * @return String identifier for created data
+   */
+  public Future<String> saveBatchUser(RequestContext requestContext, String index, Map<String, Object> data);
+
+  /**
    * This method will update data based on identifier.take the data based on identifier and merge
    * with incoming data then update it.
    *
@@ -60,6 +72,9 @@ public interface ElasticSearchService {
    */
   public Future<Map<String, Object>> getDataByIdentifier(RequestContext requestContext, String index, String identifier);
 
+
+  public Future<Map<String, Object>> getData(RequestContext requestContext, String index, String batchid, String userid);
+
   /**
    * This method will remove data from ES based on identifier.
    *
@@ -74,7 +89,7 @@ public interface ElasticSearchService {
    * criteria like fields, facets, sort by , filters etc. here user can pass single type to search
    * or multiple type or null
    *
-   * @param type var arg of String
+   * @param searchDTO var arg of String
    * @param requestContext
    * @return search result as Map.
    */
@@ -112,7 +127,7 @@ public interface ElasticSearchService {
   public Future<Boolean> upsert(RequestContext requestContext, String index, String identifier, Map<String, Object> data);
 
   /**
-   * @param ids List of ids of document
+   * @param organisationIds List of ids of document
    * @param fields List of fields which needs to captured
    * @param index elastic search index in which search should be done
    * @return Map<String,Map<String,Object>> It will return a map with id as key and the data from ES

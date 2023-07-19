@@ -4,6 +4,7 @@ import org.sunbird.common.models.response.Response;
 import org.sunbird.common.request.Request;
 import org.sunbird.common.request.RequestContext;
 import org.sunbird.models.batch.user.BatchUser;
+import scala.concurrent.Future;
 
 import java.util.List;
 import java.util.Map;
@@ -45,5 +46,10 @@ public interface BatchUserDao {
      * @return Response containing status of batch user delete
      */
     Response delete(RequestContext requestContext, String batchId,String userId);
+
+
+    String saveBatchUserToES(Map<String, Object> data, RequestContext context);
+
+    Future<Map<String, Object>> readBatchUsersFromEs(Request request, String batchId, String userId);
 
 }

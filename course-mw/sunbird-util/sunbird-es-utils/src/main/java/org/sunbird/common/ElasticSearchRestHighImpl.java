@@ -1,11 +1,8 @@
 package org.sunbird.common;
 
 import akka.dispatch.Futures;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -26,6 +23,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
@@ -135,6 +133,73 @@ public class ElasticSearchRestHighImpl implements ElasticSearchService {
     return promise.future();
   }
 
+  public Future<String> saveBatchUser(RequestContext requestContext, String index, Map<String, Object> data) {
+    long startTime = System.currentTimeMillis();
+    Promise<String> promise = Futures.promise();
+    String identifier= UUID.randomUUID().toString();
+    logger.debug(requestContext,
+            "ElasticSearchUtilRest:save: method started at ==" + startTime + " for Index " + index);
+    if (StringUtils.isBlank(identifier)|| StringUtils.isBlank(index)) {
+      logger.info(requestContext,
+              "ElasticSearchRestHighImpl:save: "
+                      + "batchid and userid or Index value is null or empty, identifier : "
+                      + ""
+                      + identifier
+                      + ",index: "
+                      + index
+                      + ",not able to save data.");
+      promise.success(ERROR);
+      return promise.future();
+    }
+    data.put("identifier",identifier);
+
+    IndexRequest indexRequest = new IndexRequest(index, _DOC, identifier).source(data);
+
+    ActionListener<IndexResponse> listener =
+            new ActionListener<IndexResponse>() {
+              @Override
+              public void onResponse(IndexResponse indexResponse) {
+                logger.info(requestContext,
+                        "ElasticSearchRestHighImpl:save: Success for index : "
+                                + index
+                                + ", identifier :"
+                                + identifier);
+
+                promise.success(indexResponse.getId());
+                logger.debug(requestContext,
+                        "ElasticSearchRestHighImpl:save: method end at =="
+                                + System.currentTimeMillis()
+                                + " for Index "
+                                + index
+                                + " ,Total time elapsed = "
+                                + calculateEndTime(startTime));
+              }
+
+              @Override
+              public void onFailure(Exception e) {
+                promise.failure(e);
+                logger.error(requestContext,
+                        "ElasticSearchRestHighImpl:save: "
+                                + "Error while saving "
+                                + index
+                                + " id : "
+                                + identifier
+                                + " with error :"
+                        , e);
+                logger.debug(requestContext,
+                        "ElasticSearchRestHighImpl:save: method end at =="
+                                + System.currentTimeMillis()
+                                + " for INdex "
+                                + index
+                                + " ,Total time elapsed = "
+                                + calculateEndTime(startTime));
+              }
+            };
+
+    ConnectionManager.getRestClient().indexAsync(indexRequest, listener);
+
+    return promise.future();
+  }
   /**
    * This method will update data entry inside Elastic search, using identifier and provided data .
    *
@@ -257,6 +322,65 @@ public class ElasticSearchRestHighImpl implements ElasticSearchService {
               + ","
               + " identifier = "
               + identifier);
+      promise.failure(ProjectUtil.createClientException(ResponseCode.invalidData));
+    }
+
+    return promise.future();
+  }
+
+
+  public Future<Map<String, Object>> getData(RequestContext requestContext, String index, String batchid, String userid) {
+    long startTime = System.currentTimeMillis();
+    Promise<Map<String, Object>> promise = Futures.promise();
+    if (StringUtils.isNotEmpty(batchid) && StringUtils.isNotEmpty(userid) && StringUtils.isNotEmpty(index)) {
+
+      logger.debug(requestContext,
+              "ElasticSearchRestHighImpl:getDataByIdentifier: method started at =="
+                      + startTime
+                      + " for Index "
+                      + index);
+
+      GetRequest getRequest = new GetRequest(index, _DOC, batchid);
+
+      ActionListener<GetResponse> listener =
+              new ActionListener<GetResponse>() {
+                @Override
+                public void onResponse(GetResponse getResponse) {
+                  if (getResponse.isExists()) {
+                    Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
+                    if (MapUtils.isNotEmpty(sourceAsMap)) {
+                      promise.success(sourceAsMap);
+                      logger.debug(requestContext,
+                              "ElasticSearchRestHighImpl:getDataByIdentifier: method end =="
+                                      + " for Index "
+                                      + index
+                                      + " ,Total time elapsed = "
+                                      + calculateEndTime(startTime));
+                    } else {
+                      promise.success(new HashMap<>());
+                    }
+                  } else {
+                    promise.success(new HashMap<>());
+                  }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                  logger.error(requestContext,
+                          "ElasticSearchRestHighImpl:getDataByIdentifier: method Failed with error == " , e);
+                  promise.failure(e);
+                }
+              };
+
+      ConnectionManager.getRestClient().getAsync(getRequest, listener);
+    } else {
+      logger.info(requestContext,
+              "ElasticSearchRestHighImpl:getDataByIdentifier:  "
+                      + "provided index or identifier is null, index = "
+                      + index
+                      + ","
+                      + " identifier = "
+                      + batchid);
       promise.failure(ProjectUtil.createClientException(ResponseCode.invalidData));
     }
 
@@ -702,4 +826,7 @@ public class ElasticSearchRestHighImpl implements ElasticSearchService {
 
     return promise.future();
   }
+
+
+
 }

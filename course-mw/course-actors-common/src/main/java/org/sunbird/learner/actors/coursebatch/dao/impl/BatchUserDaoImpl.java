@@ -4,15 +4,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.collections.CollectionUtils;
 import org.sunbird.cassandra.CassandraOperation;
 import org.sunbird.common.CassandraUtil;
+import org.sunbird.common.ElasticSearchHelper;
+import org.sunbird.common.factory.EsClientFactory;
+import org.sunbird.common.inf.ElasticSearchService;
 import org.sunbird.common.models.response.Response;
 import org.sunbird.common.models.util.JsonKey;
 import org.sunbird.common.models.util.LoggerUtil;
+import org.sunbird.common.models.util.ProjectUtil;
 import org.sunbird.common.request.Request;
 import org.sunbird.common.request.RequestContext;
 import org.sunbird.helper.ServiceFactory;
 import org.sunbird.learner.actors.coursebatch.dao.BatchUserDao;
 import org.sunbird.learner.util.Util;
 import org.sunbird.models.batch.user.BatchUser;
+import scala.concurrent.Future;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,6 +30,8 @@ public class BatchUserDaoImpl implements BatchUserDao {
 
     private CassandraOperation cassandraOperation = ServiceFactory.getInstance();
     private Util.DbInfo batchUserDb = Util.dbInfoMap.get(JsonKey.BATCH_USER_DB);
+
+    private final ElasticSearchService esService = EsClientFactory.getInstance(JsonKey.REST);
 
     private ObjectMapper mapper = new ObjectMapper();
 
@@ -67,6 +74,14 @@ public class BatchUserDaoImpl implements BatchUserDao {
 
     }
 
+
+    public Future<Map<String, Object>> readBatchUsersFromEs(Request request, String batchId, String userId) {
+        String type = ProjectUtil.EsType.batchusermapping.getTypeName();
+        Future<Map<String, Object>> responseF = esService.getData(request.getRequestContext(), type, batchId,userId);
+        return (Future<Map<String, Object>>) ElasticSearchHelper.getResponseFromFuture(responseF);
+
+    }
+
         @Override
         public Response insert (RequestContext requestContext, Map < String, Object > batchUserDetails){
             return cassandraOperation.insertRecord(requestContext, batchUserDb.getKeySpace(), batchUserDb.getTableName(), batchUserDetails);
@@ -100,5 +115,11 @@ public class BatchUserDaoImpl implements BatchUserDao {
         list.add(batchid); list.add(userid);
         return cassandraOperation.deleteRecordBatchId(
                 batchUserDb.getKeySpace(), batchUserDb.getTableName(), list, requestContext);
+    }
+
+    public String saveBatchUserToES(Map<String, Object> data, RequestContext context) {
+        String type = ProjectUtil.EsType.batchusermapping.getTypeName();
+        Future<String> responseF = esService.saveBatchUser(context, type, data);
+        return (String) ElasticSearchHelper.getResponseFromFuture(responseF);
     }
 }
